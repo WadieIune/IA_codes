@@ -1,0 +1,45 @@
+{
+  "data": {
+    "mode": "series_bundle",
+    "target_col": "BRENT",
+    "series_bundle": {
+      "dataset_dir": "/mnt/data",
+      "bundle_target_col": "BRENT_fwd_logret_1",
+      "bundle_price_col": "BRENT",
+      "bundle_target_is_log_return": true,
+      "use_precomputed_split": true
+    }
+  },
+  "dataset": {
+    "lookback": 32,
+    "horizon": 1,
+    "support_resistance_horizon": 5,
+    "image_size": 160,
+    "valid_ratio_within_precomputed_train": 0.1,
+    "min_label_confidence": 0.35,
+    "use_synthetic_pretrain": false,
+    "feature_cols": [],
+    "feature_regex_keep": [],
+    "feature_regex_drop": []
+  },
+  "training": {
+    "epochs": 1,
+    "fine_tune_epochs": 1,
+    "batch_size": 8,
+    "learning_rate": 0.0003,
+    "fine_tune_learning_rate": 0.0001,
+    "dropout": 0.3,
+    "regression_loss_weight": 0.5,
+    "unfreeze_last_layers": 4,
+    "patience": 2,
+    "device": "cpu",
+    "pretrained_backbone": false
+  },
+  "output": {
+    "root_dir": "/mnt/data/adapted_artifacts",
+    "model_dir": "/mnt/data/adapted_artifacts/models",
+    "report_dir": "/mnt/data/adapted_artifacts/reports",
+    "dataset_dir": "/mnt/data/adapted_artifacts/datasets",
+    "metadata_dir": "/mnt/data/adapted_artifacts/metadata"
+  }
+}

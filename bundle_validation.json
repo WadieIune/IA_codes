@@ -1,0 +1,35 @@
+{
+  "raw_shape": [
+    7004,
+    180
+  ],
+  "zscore_shape": [
+    7004,
+    180
+  ],
+  "target_non_null": 3590,
+  "feature_count": 180,
+  "price_col": "BRENT",
+  "target_col": "BRENT_fwd_logret_1",
+  "reconstructed_window_count": 1233,
+  "reconstructed_first_date": "2019-12-02",
+  "reconstructed_last_date": "2026-03-04",
+  "precomputed_train_shape": [
+    986,
+    32,
+    180
+  ],
+  "precomputed_y_train_shape": [
+    986
+  ],
+  "train_matches_reconstruction": true,
+  "precomputed_test_shape": [
+    247,
+    32,
+    180
+  ],
+  "precomputed_y_test_shape": [
+    247
+  ],
+  "test_matches_reconstruction": true
+}

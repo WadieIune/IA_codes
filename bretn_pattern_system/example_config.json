@@ -1,0 +1,54 @@
+{
+  "data": {
+    "mode": "series_bundle",
+    "target_col": "BRENT",
+    "series_bundle": {
+      "dataset_dir": "market_dataset",
+      "bundle_target_col": "BRENT_fwd_logret_1",
+      "bundle_price_col": "BRENT",
+      "bundle_target_is_log_return": true,
+      "use_precomputed_split": true
+    }
+  },
+  "dataset": {
+    "lookback": 32,
+    "horizon": 1,
+    "support_resistance_horizon": 5,
+    "image_size": 240,
+    "valid_ratio_within_precomputed_train": 0.1,
+    "min_label_confidence": 0.35,
+    "use_synthetic_pretrain": true,
+    "synthetic_samples": 4000,
+    "feature_cols": [],
+    "feature_regex_keep": [],
+    "feature_regex_drop": []
+  },
+  "training": {
+    "epochs": 8,
+    "fine_tune_epochs": 5,
+    "batch_size": 16,
+    "learning_rate": 0.0003,
+    "fine_tune_learning_rate": 0.0001,
+    "dropout": 0.3,
+    "regression_loss_weight": 0.5,
+    "unfreeze_last_layers": 40,
+    "patience": 4,
+    "device": "cuda",
+    "pretrained_backbone": true
+  },
+  "outlier": {
+    "rolling_window": 10,
+    "target_cumulative_weight": 0.99,
+    "score_threshold": 0.68,
+    "min_dominant_confidence": 0.55,
+    "metric_distance_threshold": 2.5,
+    "volatility_spike_window": 20
+  },
+  "output": {
+    "root_dir": "artifacts",
+    "model_dir": "artifacts/models",
+    "report_dir": "artifacts/reports",
+    "dataset_dir": "artifacts/datasets",
+    "metadata_dir": "artifacts/metadata"
+  }
+}

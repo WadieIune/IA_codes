@@ -1,0 +1,178 @@
+{
+  "validation": {
+    "raw_shape": [
+      7004,
+      180
+    ],
+    "zscore_shape": [
+      7004,
+      180
+    ],
+    "target_non_null": 3590,
+    "feature_count": 180,
+    "price_col": "BRENT",
+    "target_col": "BRENT_fwd_logret_1",
+    "reconstructed_window_count": 1233,
+    "reconstructed_first_date": "2019-12-02",
+    "reconstructed_last_date": "2026-03-04",
+    "precomputed_train_shape": [
+      986,
+      32,
+      180
+    ],
+    "precomputed_y_train_shape": [
+      986
+    ],
+    "train_matches_reconstruction": true,
+    "precomputed_test_shape": [
+      247,
+      32,
+      180
+    ],
+    "precomputed_y_test_shape": [
+      247
+    ],
+    "test_matches_reconstruction": true
+  },
+  "raw_wide_rows": 7004,
+  "raw_wide_cols": 180,
+  "zscore_rows": 7004,
+  "zscore_cols": 180,
+  "selected_feature_count": 180,
+  "selected_prefixed_features": [
+    "z__AUDUSD",
+    "z__BRENT",
+    "z__BRLUSD",
+    "z__CADUSD",
+    "z__CHFUSD",
+    "z__COFFEE",
+    "z__COPPER",
+    "z__DAX",
+    "z__DFF",
+    "z__DGS10",
+    "z__DGS2",
+    "z__DGS30",
+    "z__DGS5",
+    "z__DOWJONES",
+    "z__DTWEXBGS",
+    "z__ESTR",
+    "z__EURGBP",
+    "z__EUROSTOXX50",
+    "z__EURUSD",
+    "z__GBPUSD"
+  ],
+  "window_count": 1230,
+  "window_first_date": "2019-12-02",
+  "window_last_date": "2026-02-26",
+  "split_counts": {
+    "train": 887,
+    "test": 244,
+    "valid": 99
+  },
+  "pattern_counts": {
+    "ascending_channel": 506,
+    "descending_channel": 418,
+    "range": 248,
+    "double_top": 37,
+    "double_bottom": 20,
+    "inverse_head_shoulders": 1
+  },
+  "feature_group_counts": {
+    "raw_close_cols": 37,
+    "logret_cols": 37,
+    "vol20_cols": 37,
+    "rangepct_cols": 28,
+    "ma520_cols": 37,
+    "spread_ratio_cols": 4
+  },
+  "latest_starting_features": [
+    {
+      "feature": "ESTR_vol20",
+      "first_valid_date": "2019-10-29"
+    },
+    {
+      "feature": "ESTR_ma520",
+      "first_valid_date": "2019-10-28"
+    },
+    {
+      "feature": "ESTR_logret1",
+      "first_valid_date": "2019-10-02"
+    },
+    {
+      "feature": "ESTR",
+      "first_valid_date": "2019-10-01"
+    },
+    {
+      "feature": "SOFR_vol20",
+      "first_valid_date": "2018-05-01"
+    },
+    {
+      "feature": "SOFR_ma520",
+      "first_valid_date": "2018-04-30"
+    },
+    {
+      "feature": "SOFR_logret1",
+      "first_valid_date": "2018-04-04"
+    },
+    {
+      "feature": "SOFR",
+      "first_valid_date": "2018-04-03"
+    },
+    {
+      "feature": "BRENT_vol20",
+      "first_valid_date": "2007-08-27"
+    },
+    {
+      "feature": "BRENT_ma520",
+      "first_valid_date": "2007-08-24"
+    },
+    {
+      "feature": "BRENT_logret1",
+      "first_valid_date": "2007-07-31"
+    },
+    {
+      "feature": "BRENT",
+      "first_valid_date": "2007-07-30"
+    },
+    {
+      "feature": "BRENT_rangepct",
+      "first_valid_date": "2007-07-30"
+    },
+    {
+      "feature": "SPREAD_WTI_BRENT",
+      "first_valid_date": "2007-07-30"
+    },
+    {
+      "feature": "RATIO_WTI_BRENT",
+      "first_valid_date": "2007-07-30"
+    },
+    {
+      "feature": "BRENT_EURUSD_RATIO",
+      "first_valid_date": "2007-07-30"
+    },
+    {
+      "feature": "EUROSTOXX50_vol20",
+      "first_valid_date": "2007-05-02"
+    },
+    {
+      "feature": "EUROSTOXX50_ma520",
+      "first_valid_date": "2007-04-30"
+    },
+    {
+      "feature": "EUROSTOXX50_logret1",
+      "first_valid_date": "2007-04-02"
+    },
+    {
+      "feature": "EUROSTOXX50",
+      "first_valid_date": "2007-03-30"
+    }
+  ],
+  "extra": {
+    "mode": "series_bundle",
+    "bundle_feature_count": 180,
+    "selected_feature_count": 180,
+    "precomputed_train_count": 986,
+    "precomputed_test_count": 247,
+    "precomputed_lookback": 32
+  }
+}

@@ -1,0 +1,303 @@
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+from typing import Dict, List
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    confusion_matrix,
+    f1_score,
+    mean_absolute_error,
+    mean_squared_error,
+)
+
+
+def _safe_rmse(y_true: pd.Series, y_pred: pd.Series) -> float:
+    return float(np.sqrt(mean_squared_error(y_true, y_pred)))
+
+
+def _format_metric(v: float | int | None, digits: int = 4) -> str:
+    if v is None or (isinstance(v, float) and (np.isnan(v) or np.isinf(v))):
+        return ""
+    if isinstance(v, int):
+        return str(v)
+    return f"{v:.{digits}f}"
+
+
+def _load_training_report(artifacts_root: Path, backend: str) -> Dict[str, object]:
+    models_dir = artifacts_root / "models"
+    name = "torch_training_report.json" if backend == "torch" else "tf_training_report.json"
+    path = models_dir / name
+    if not path.exists():
+        return {}
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _flatten_training_history(report: Dict[str, object], backend: str) -> pd.DataFrame:
+    rows: List[Dict[str, object]] = []
+    if not report:
+        return pd.DataFrame()
+
+    for phase_key, phase_name in [("warm_history", "warm"), ("fine_tune_history", "fine_tune")]:
+        hist = report.get(phase_key, {})
+        if not isinstance(hist, dict) or not hist:
+            continue
+
+        if backend == "torch":
+            epoch_count = max((len(v) for v in hist.values() if isinstance(v, list)), default=0)
+            for epoch_idx in range(epoch_count):
+                row = {"phase": phase_name, "epoch": epoch_idx + 1}
+                for metric_name, values in hist.items():
+                    if isinstance(values, list) and epoch_idx < len(values):
+                        row[metric_name] = values[epoch_idx]
+                rows.append(row)
+        else:
+            epoch_count = max((len(v) for v in hist.values() if isinstance(v, list)), default=0)
+            mapping = {
+                "loss": "train_loss",
+                "val_loss": "valid_loss",
+                "pattern_accuracy": "train_accuracy",
+                "val_pattern_accuracy": "valid_accuracy",
+                "levels_mae": "train_mae",
+                "val_levels_mae": "valid_mae",
+                "pattern_loss": "train_pattern_loss",
+                "val_pattern_loss": "valid_pattern_loss",
+                "levels_loss": "train_levels_loss",
+                "val_levels_loss": "valid_levels_loss",
+            }
+            for epoch_idx in range(epoch_count):
+                row = {"phase": phase_name, "epoch": epoch_idx + 1}
+                for metric_name, values in hist.items():
+                    std_name = mapping.get(metric_name, metric_name)
+                    if isinstance(values, list) and epoch_idx < len(values):
+                        row[std_name] = values[epoch_idx]
+                rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def _save_training_curves(history_df: pd.DataFrame, output_dir: Path) -> None:
+    if history_df.empty:
+        return
+    plot_specs = [
+        ("loss", "Pérdida", ["train_loss", "valid_loss"]),
+        ("accuracy", "Accuracy", ["train_accuracy", "valid_accuracy"]),
+        ("mae", "MAE", ["train_mae", "valid_mae"]),
+    ]
+    for suffix, ylabel, cols in plot_specs:
+        available = [c for c in cols if c in history_df.columns]
+        if not available:
+            continue
+        plt.figure(figsize=(8, 4))
+        x = np.arange(1, len(history_df) + 1)
+        for col in available:
+            plt.plot(x, history_df[col].to_numpy(dtype=float), label=col)
+        phase_breaks = history_df.groupby("phase").size().to_dict()
+        if "warm" in phase_breaks and "fine_tune" in phase_breaks:
+            plt.axvline(phase_breaks["warm"] + 0.5, linestyle="--")
+        plt.xlabel("Epoch global")
+        plt.ylabel(ylabel)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(output_dir / f"training_{suffix}.png", dpi=150)
+        plt.close()
+
+
+def _compute_split_metrics(df: pd.DataFrame) -> Dict[str, object]:
+    if df.empty:
+        return {"n": 0}
+
+    out: Dict[str, object] = {"n": int(len(df))}
+
+    if {"pattern_label", "predicted_pattern"}.issubset(df.columns):
+        out["accuracy"] = float(accuracy_score(df["pattern_label"], df["predicted_pattern"]))
+        out["balanced_accuracy"] = float(balanced_accuracy_score(df["pattern_label"], df["predicted_pattern"]))
+        out["macro_f1"] = float(f1_score(df["pattern_label"], df["predicted_pattern"], average="macro", zero_division=0))
+
+    reg_pairs = [
+        ("future_return", "pred_return", "return"),
+        ("future_low", "pred_low", "low"),
+        ("future_high", "pred_high", "high"),
+    ]
+    for y_true_col, y_pred_col, tag in reg_pairs:
+        if {y_true_col, y_pred_col}.issubset(df.columns):
+            out[f"mae_{tag}"] = float(mean_absolute_error(df[y_true_col], df[y_pred_col]))
+            out[f"rmse_{tag}"] = _safe_rmse(df[y_true_col], df[y_pred_col])
+
+    if "outlier_flag" in df.columns:
+        out["outlier_rate"] = float(df["outlier_flag"].mean())
+    if "label_confidence" in df.columns:
+        out["mean_label_confidence"] = float(df["label_confidence"].mean())
+    if "dominant_probability" in df.columns:
+        out["mean_dominant_probability"] = float(df["dominant_probability"].mean())
+
+    return out
+
+
+def _build_metrics_table(by_split: Dict[str, Dict[str, object]]) -> pd.DataFrame:
+    rows = []
+    ordered_cols = [
+        "split",
+        "n",
+        "accuracy",
+        "balanced_accuracy",
+        "macro_f1",
+        "mae_return",
+        "rmse_return",
+        "mae_low",
+        "rmse_low",
+        "mae_high",
+        "rmse_high",
+        "outlier_rate",
+        "mean_label_confidence",
+        "mean_dominant_probability",
+    ]
+    for split_name, payload in by_split.items():
+        row = {"split": split_name}
+        row.update(payload)
+        rows.append(row)
+    df = pd.DataFrame(rows)
+    cols = [c for c in ordered_cols if c in df.columns]
+    return df[cols]
+
+
+def _save_confusion(df: pd.DataFrame, output_dir: Path) -> None:
+    if df.empty or not {"pattern_label", "predicted_pattern"}.issubset(df.columns):
+        return
+    labels = sorted(set(df["pattern_label"]).union(set(df["predicted_pattern"])))
+    cm = confusion_matrix(df["pattern_label"], df["predicted_pattern"], labels=labels)
+    cm_df = pd.DataFrame(cm, index=labels, columns=labels)
+    cm_df.to_csv(output_dir / "test_confusion_matrix.csv")
+
+    plt.figure(figsize=(8, 6))
+    plt.imshow(cm, aspect="auto")
+    plt.xticks(range(len(labels)), labels, rotation=45, ha="right")
+    plt.yticks(range(len(labels)), labels)
+    plt.xlabel("Predicción")
+    plt.ylabel("Verdad")
+    plt.tight_layout()
+    plt.savefig(output_dir / "test_confusion_matrix.png", dpi=150)
+    plt.close()
+
+
+def _latex_table(test_metrics: Dict[str, object]) -> str:
+    cols = [
+        ("n", "N"),
+        ("accuracy", "Accuracy"),
+        ("balanced_accuracy", "Balanced Acc."),
+        ("macro_f1", "Macro-F1"),
+        ("mae_return", "MAE Ret."),
+        ("rmse_return", "RMSE Ret."),
+        ("mae_low", "MAE Low"),
+        ("rmse_low", "RMSE Low"),
+        ("mae_high", "MAE High"),
+        ("rmse_high", "RMSE High"),
+        ("outlier_rate", "Outlier Rate"),
+    ]
+    headers = " & ".join(label for _, label in cols)
+    values = " & ".join(_format_metric(test_metrics.get(key)) for key, _ in cols)
+    return (
+        "\\begin{table}[ht]\n"
+        "\\centering\n"
+        "\\caption{Resultados en el conjunto de test.}\n"
+        "\\begin{tabular}{" + "c" * len(cols) + "}\n"
+        "\\hline\n"
+        f"{headers} \\\\ \n"
+        "\\hline\n"
+        f"{values} \\\\ \n"
+        "\\hline\n"
+        "\\end{tabular}\n"
+        "\\end{table}\n"
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Calcula métricas finales de train/valid/test para el paper.")
+    parser.add_argument("--artifacts-root", type=str, required=True, help="Carpeta raíz de artefactos generados por el pipeline")
+    parser.add_argument("--backend", type=str, default="torch", choices=["torch", "tensorflow"], help="Backend del modelo")
+    parser.add_argument("--output-dir", type=str, default=None, help="Directorio donde guardar métricas y figuras")
+    args = parser.parse_args()
+
+    artifacts_root = Path(args.artifacts_root)
+    metadata_dir = artifacts_root / "metadata"
+    report_dir = artifacts_root / "reports"
+    output_dir = Path(args.output_dir) if args.output_dir else report_dir / f"{args.backend}_paper_metrics"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    window_path = metadata_dir / "window_table.csv"
+    pred_path = report_dir / f"{args.backend}_prediction_report.csv"
+
+    if not window_path.exists():
+        raise FileNotFoundError(f"No existe {window_path}")
+    if not pred_path.exists():
+        raise FileNotFoundError(f"No existe {pred_path}")
+
+    window_df = pd.read_csv(window_path)
+    pred_df = pd.read_csv(pred_path)
+
+    base_cols = [
+        "start",
+        "end",
+        "split",
+        "pattern_label",
+        "label_confidence",
+        "future_return",
+        "future_low",
+        "future_high",
+        "current_price",
+    ]
+    keep_cols = [c for c in base_cols if c in window_df.columns]
+    merged = pred_df.merge(window_df[keep_cols], on=["start", "end"], how="inner", suffixes=("", "_true"))
+    merged.to_csv(output_dir / "joined_predictions_vs_truth.csv", index=False)
+
+    split_names = ["train", "valid", "test", "all_labeled"]
+    split_frames = {
+        "train": merged[merged["split"] == "train"].copy(),
+        "valid": merged[merged["split"] == "valid"].copy(),
+        "test": merged[merged["split"] == "test"].copy(),
+        "all_labeled": merged.copy(),
+    }
+
+    by_split = {name: _compute_split_metrics(df) for name, df in split_frames.items()}
+    metrics_df = _build_metrics_table(by_split)
+    metrics_df.to_csv(output_dir / "metrics_by_split.csv", index=False)
+
+    summary = {
+        "backend": args.backend,
+        "artifacts_root": str(artifacts_root),
+        "prediction_rows": int(len(pred_df)),
+        "labeled_rows_after_join": int(len(merged)),
+        "splits": by_split,
+    }
+    with open(output_dir / "paper_metrics_summary.json", "w", encoding="utf-8") as fh:
+        json.dump(summary, fh, indent=2, ensure_ascii=False)
+
+    test_df = split_frames["test"]
+    _save_confusion(test_df, output_dir)
+
+    training_report = _load_training_report(artifacts_root, args.backend)
+    if training_report:
+        with open(output_dir / "training_report_copy.json", "w", encoding="utf-8") as fh:
+            json.dump(training_report, fh, indent=2, ensure_ascii=False)
+        hist_df = _flatten_training_history(training_report, backend=args.backend)
+        if not hist_df.empty:
+            hist_df.to_csv(output_dir / "training_history_flat.csv", index=False)
+            _save_training_curves(hist_df, output_dir)
+
+    latex = _latex_table(by_split.get("test", {}))
+    with open(output_dir / "paper_results_table.tex", "w", encoding="utf-8") as fh:
+        fh.write(latex)
+
+    print(json.dumps(summary, indent=2, ensure_ascii=False))
+    print("\nTabla LaTeX guardada en:", output_dir / "paper_results_table.tex")
+
+
+if __name__ == "__main__":
+    main()

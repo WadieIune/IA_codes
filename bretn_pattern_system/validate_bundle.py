@@ -22,3 +22,4 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, default=None, help="Ruta al JSON de configuración")
     args = parser.parse_args()
     run(args.config)
+

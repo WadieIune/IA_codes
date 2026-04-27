@@ -132,3 +132,90 @@ def score_head_shoulders(values: np.ndarray) -> float:
         score = max(0.0, 0.35 * side_similarity + 0.35 * head_margin + 0.15 * neckline + 0.15 * max(breakdown, 0.0))
         best = max(best, score)
     return float(np.clip(best, 0.0, 1.0))
+
+
+
+def score_inverse_head_shoulders(values: np.ndarray) -> float:
+    inv = -np.asarray(values, dtype=float)
+    return score_head_shoulders(inv)
+
+
+
+def score_ascending_channel(values: np.ndarray) -> float:
+    slope, r2, resid_std = _linear_fit_metrics(values)
+    range_ = _series_range(values)
+    maxima, minima = find_turning_points(values)
+    oscillation_bonus = min((len(maxima) + len(minima)) / 8.0, 1.0)
+    residual_score = 1.0 - min(resid_std / range_, 1.0)
+    slope_score = 1.0 if slope > 0 else 0.0
+    score = 0.40 * slope_score + 0.30 * max(r2, 0.0) + 0.20 * residual_score + 0.10 * oscillation_bonus
+    return float(np.clip(score, 0.0, 1.0))
+
+
+
+def score_descending_channel(values: np.ndarray) -> float:
+    inv = -np.asarray(values, dtype=float)
+    return score_ascending_channel(inv)
+
+
+
+def score_high_tight_flag(values: np.ndarray) -> float:
+    values = np.asarray(values, dtype=float)
+    n = len(values)
+    if n < 12:
+        return 0.0
+    first = values[: n // 2]
+    second = values[n // 2 :]
+    range_ = _series_range(values)
+    impulse = min((np.max(first) - np.min(first)) / range_, 1.0)
+    initial_trend = max((first[-1] - first[0]) / range_, 0.0)
+    consolidation_range = (np.max(second) - np.min(second)) / range_
+    consolidation_score = 1.0 - min(consolidation_range / 0.5, 1.0)
+    drift_score = max((values[-1] - np.median(second)) / range_, 0.0)
+    score = 0.35 * impulse + 0.30 * initial_trend + 0.20 * consolidation_score + 0.15 * drift_score
+    return float(np.clip(score, 0.0, 1.0))
+
+
+
+def score_range(values: np.ndarray) -> float:
+    slope, r2, resid_std = _linear_fit_metrics(values)
+    range_ = _series_range(values)
+    flatness = 1.0 - min(abs(slope) * len(values) / range_, 1.0)
+    residual_score = min(resid_std / range_, 1.0)
+    turning = find_turning_points(values)
+    oscillation_score = min((len(turning[0]) + len(turning[1])) / 6.0, 1.0)
+    score = 0.50 * flatness + 0.25 * (1.0 - max(r2, 0.0)) + 0.15 * residual_score + 0.10 * oscillation_score
+    return float(np.clip(score, 0.0, 1.0))
+
+
+
+def score_price_window(values: np.ndarray) -> Dict[str, float]:
+    values = smooth_series(np.asarray(values, dtype=float), window=3)
+    return {
+        "double_bottom": score_double_bottom(values),
+        "double_top": score_double_top(values),
+        "ascending_channel": score_ascending_channel(values),
+        "descending_channel": score_descending_channel(values),
+        "high_tight_flag": score_high_tight_flag(values),
+        "head_shoulders": score_head_shoulders(values),
+        "inverse_head_shoulders": score_inverse_head_shoulders(values),
+        "range": score_range(values),
+    }
+
+
+
+def label_price_window(values: np.ndarray, threshold: float = 0.35) -> Tuple[str, float, Dict[str, float]]:
+    scores = score_price_window(values)
+    best_label = max(scores, key=scores.get)
+    confidence = float(scores[best_label])
+    if confidence < threshold:
+        return "unclassified", confidence, scores
+    return best_label, confidence, scores
+
+
+
+def class_to_index(label: str) -> int:
+    if label not in PATTERN_CLASSES:
+        raise ValueError(f"Clase desconocida: {label}")
+    return PATTERN_CLASSES.index(label)
+

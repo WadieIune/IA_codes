@@ -1,0 +1,76 @@
+ Solución final para ejecutar en Colab sin errores de empaquetado/rutas
+
+## Qué estaba rompiendo la ejecución
+
+1. `example_config_attached_bundle.json` usaba rutas absolutas a `/mnt/data`, incompatibles con la ejecución estándar en Colab cuando el proyecto se sube y descomprime en `/content`.
+2. Las rutas relativas dependían del directorio de trabajo, no del directorio del propio JSON.
+3. Los entrypoints solo eran seguros con `python -m ...`; si el notebook lanzaba `python brent_pattern_system/...py`, podían fallar las importaciones relativas.
+4. `feature_means.csv` y `feature_stds.csv` se exigían siempre aunque el sistema realmente puede reconstruirlos desde el raw.
+5. Faltaban en la raíz del proyecto dos ficheros típicos que suelen usarse en Colab:
+   - `requirements.txt`
+   - `example_config_attached_bundle.json`
+
+## Qué se ha corregido
+
+- Resolución de rutas relativa al propio config.
+- Compatibilidad de entrada tanto con `python -m brent_pattern_system...` como con `python brent_pattern_system/...py`.
+- Fallback automático si faltan `feature_means.csv` o `feature_stds.csv`.
+- Añadido `requirements.txt` en la raíz del proyecto.
+- Añadido `example_config_attached_bundle.json` en la raíz del proyecto.
+- Ajustado `brent_pattern_system/example_config_attached_bundle.json` para que funcione desde el paquete al descomprimir en `/content`.
+- Ajustado también `example_config.json` y su copia interna para que las rutas sean coherentes.
+
+## Estructura de ejecución soportada
+
+Tras descomprimir en `/content`, quedan soportadas estas dos formas:
+
+### Opción A: config en raíz
+
+- Config: `/content/example_config_attached_bundle.json`
+- Bundle esperado en: `/content`
+
+### Opción B: config dentro del paquete
+
+- Config: `/content/brent_pattern_system/example_config_attached_bundle.json`
+- Bundle esperado en: `/content`
+
+## Bundle mínimo necesario para modo `series_bundle`
+
+Obligatorios:
+
+- `dataset_wide_with_target.csv`
+- `dataset_wide_features_zscore.csv`
+
+Recomendados pero ya no obligatorios:
+
+- `feature_means.csv`
+- `feature_stds.csv`
+
+Opcionales:
+
+- `X_train.npy`
+- `y_train.npy`
+- `X_test.npy`
+- `y_test.npy`
+
+## Comandos recomendados en Colab
+
+Desde `/content`:
+
+```bash
+pip install -r /content/requirements.txt
+python -m brent_pattern_system.validate_bundle --config /content/example_config_attached_bundle.json
+python -m brent_pattern_system.profile_bundle --config /content/example_config_attached_bundle.json
+python -m brent_pattern_system.train_torch --config /content/example_config_attached_bundle.json
+python -m brent_pattern_system.inference --config /content/example_config_attached_bundle.json --backend torch
+```
+
+También funciona esta variante si el notebook llama scripts directos:
+
+```bash
+python /content/brent_pattern_system/validate_bundle.py --config /content/example_config_attached_bundle.json
+```
+
+## Nota importante
+
+Para que el proyecto completo produzca resultados reales del paper en modo `series_bundle`, el zip o la carpeta que subas a `/content` tiene que contener también el bundle de datos con esos nombres exactos. El código ya no fallará por las rutas del proyecto ni por la ausencia de `feature_means.csv`/`feature_stds.csv`, pero sin los CSV principales del bundle no existe forma de entrenar ni de inferir en este modo.
